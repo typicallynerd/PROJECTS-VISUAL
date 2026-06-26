@@ -1,0 +1,343 @@
+# ◈ Attractor Lab — Full Breakdown
+
+A live animated explorer of **chaotic attractors** — mathematical systems
+that create endlessly morphing, glowing shapes from simple equations.
+
+---
+
+## How to Run
+
+1. Open `attractor.html` in any browser (double-click the file)
+2. The animation starts automatically
+3. Use the panel on the right to control everything
+
+No Python. No install. No internet needed. Just one HTML file.
+
+---
+
+## What Is a Chaotic Attractor?
+
+Imagine you drop a ball into a bowl. It rolls around and eventually
+settles at the bottom — that "resting place" is called an **attractor**.
+
+Now imagine a bowl so weirdly shaped that the ball NEVER settles.
+It keeps moving forever, tracing a pattern that almost repeats
+but never quite does. That's a **strange attractor** — also called
+a **chaotic attractor**.
+
+In this app, instead of a ball in a bowl, we have a **point in space**
+moving according to a mathematical rule. We run that rule hundreds of
+thousands of times and plot every position. The shape that emerges IS
+the attractor.
+
+---
+
+## The Core Idea — Iteration
+
+Everything in this app comes down to one concept: **iteration**.
+
+Start with a point (x, y). Apply a formula. Get a new point.
+Apply the formula again. Get another new point. Repeat 100,000+ times.
+
+```
+Start:  x = 0.1,  y = 0.1
+
+Step 1: apply formula → new x, new y
+Step 2: apply formula → new x, new y
+Step 3: apply formula → new x, new y
+...
+Step 100,000: apply formula → new x, new y
+
+Plot every single point.
+```
+
+The formula runs so many times that the **pattern of where points land**
+becomes visible. Dense areas glow bright. Sparse areas stay dark.
+That glow IS the math, made visible.
+
+---
+
+## The 4 Attractor Types
+
+---
+
+### 1. de Jong Attractor
+**Peter de Jong** — artist and programmer who discovered this in the 1980s.
+
+```
+x_next = sin(a · y) − cos(b · x)
+y_next = sin(c · x) − cos(d · y)
+```
+
+**What the math means:**
+- `sin` and `cos` are wave functions — they output smooth values
+  between -1 and +1 no matter what you put in
+- Multiplying by `a`, `b`, `c`, `d` stretches or compresses those waves
+- Each new point depends on the PREVIOUS point — that's what makes
+  it iterative and chaotic
+
+**Why it makes cool shapes:**
+The sin and cos waves interact with each other. A point influenced by
+the x-wave feeds into the y-wave, which feeds back into the x-wave.
+This feedback loop is what creates the complex, self-similar patterns.
+
+**Uses all 4 parameters (a, b, c, d)**
+Each one controls a different "frequency" of the wave interaction.
+Small changes → dramatically different shapes. That's chaos.
+
+---
+
+### 2. Clifford Attractor
+**Clifford Pickover** — mathematician and author, discovered this system.
+
+```
+x_next = sin(a · y) + c · cos(a · x)
+y_next = sin(b · x) + d · cos(b · y)
+```
+
+**What's different from de Jong:**
+Notice that `c` and `d` now appear as **multipliers** in front of the
+cos terms, not just inside. This means they control the *weight* of the
+cosine wave, not just its frequency. When `c` is large, the cos term
+dominates. When it's small, the sin term dominates.
+
+**What the math means:**
+- `sin(a·y)` — a wave that oscillates based on the previous y position
+- `c · cos(a·x)` — a WEIGHTED wave based on the previous x position
+- Adding them together gives a position influenced by BOTH axes
+
+**Why it looks like flowing ribbons:**
+The weighting creates smoother, more "balanced" interactions between
+x and y. The shape tends to fold back on itself in ribbon-like loops.
+
+**Uses all 4 parameters (a, b, c, d)**
+
+---
+
+### 3. Simone Attractor
+**Simone Conradi** — the formula from the viral video you saw.
+Also related to the classic **"Trigonometric IFS"** family.
+
+```
+x_next = sin(x² − y² + a)
+y_next = cos(2·x·y + b)
+```
+
+**This one is special — notice something different:**
+The formula uses `x²`, `y²`, and `x·y`. These are called
+**quadratic terms** — the point multiplied by ITSELF.
+
+**What the quadratic terms do:**
+- `x² − y²` is the real part of the complex number z² where z = x + iy
+- `2·x·y` is the imaginary part of z²
+- So this attractor is secretly doing **complex number multiplication!**
+
+This is the same mathematics used in the **Mandelbrot set** and
+**Julia sets** — the famous fractal images you've probably seen.
+
+The `sin` and `cos` wrappers keep values bounded so instead of
+spiralling to infinity (like Mandelbrot), the points stay in a region
+and create these bold looping curves.
+
+**Only uses 2 parameters (a, b)**
+Simpler formula, but incredibly expressive shapes.
+
+---
+
+### 4. Bedhead Attractor
+Named after the tangled "bedhead" appearance of its shapes.
+
+```
+x_next = sin(x·y / b) · y + cos(a·x − y)
+y_next = x + sin(y) / b
+```
+
+**What's unusual here:**
+- `x·y / b` — the two coordinates are MULTIPLIED together before
+  being fed into sin. This creates much stronger coupling between
+  x and y than in the other attractors.
+- The y value appears both inside sin AND as a multiplier outside it:
+  `sin(...) · y` — the output scales with how large y is.
+- The second equation is simpler: new y = old x + a small wave correction
+
+**Why it creates tangled webs:**
+The strong x·y coupling means the two dimensions are tightly linked.
+A small change in x dramatically affects y and vice versa.
+This produces highly sensitive, tangled-looking patterns.
+
+**Warning:** If `b` gets close to 0, you're dividing by nearly zero,
+which makes values explode. The app handles this automatically.
+
+---
+
+## The Parameters — a, b, c, d
+
+Every attractor has constants (a, b, c, d) built into its equations.
+These are just numbers — but changing them completely reshapes the attractor.
+
+**Why such big effect from small changes?**
+This is the heart of **chaos theory**.
+
+In a chaotic system, tiny differences in starting conditions (or in
+the rules) lead to massively different outcomes over time. This is
+sometimes called the **"butterfly effect"** — a butterfly flapping
+its wings in Brazil could theoretically cause a tornado in Texas,
+because tiny air changes compound through the atmosphere over time.
+
+Same thing here: change `a` from 1.641 to 1.642 and after 100,000
+iterations, the pattern looks completely different.
+
+**Safe range:** Keep values between -3 and 3.
+Outside this range the math often "escapes to infinity" — the canvas
+goes blank because the points flew off screen.
+
+---
+
+## Morphing — How the Animation Works
+
+The app smoothly transitions between **preset parameter values**.
+
+```
+Shape A:  a=1.641, b=1.902, c=0.316, d=1.525
+Shape B:  a=-2.24, b=0.43,  c=-0.65, d=-2.43
+
+At 0%:   use Shape A values exactly
+At 25%:  use values 25% of the way between A and B
+At 50%:  use values exactly halfway between A and B
+At 75%:  use values 75% of the way toward B
+At 100%: use Shape B values → then start toward Shape C
+```
+
+This is called **linear interpolation** (lerp). The formula is:
+
+```
+current = A + (B - A) × t      where t goes from 0 to 1
+```
+
+**But we also add easing:**
+
+```
+eased_t = t² × (3 − 2t)        (called "smoothstep")
+```
+
+This makes the morph start slow, speed up in the middle, and slow
+down again at the end — like a car accelerating then braking.
+Without easing, the morph would feel mechanical and jarring.
+
+---
+
+## The Glow Effect — Trail & Persistence
+
+The glowing, smeared light effect comes from two things:
+
+### 1. Alpha transparency
+Each point is drawn with very low opacity (~0.4).
+When thousands of points land near the same spot, they stack up
+and become brighter. Dense areas glow. Sparse areas are dim.
+This is how density becomes visible as light — no special graphics
+tricks, just math creating brightness through repetition.
+
+### 2. The trail (persistence)
+Every frame, before drawing new points, the canvas is filled with
+a near-transparent black rectangle:
+
+```
+opacity = 1 - persistence%
+
+Example: 96% persistence → fill with 4% black each frame
+```
+
+This slowly fades old points rather than erasing them instantly.
+Old positions linger, creating light trails as the shape morphs.
+
+- **High persistence (96%)** → long glowing trails, smooth transitions
+- **Low persistence (30%)** → sharp, quickly changing, strobey feel
+- **0% persistence** → no trail, just the current frame's points
+
+---
+
+## The Coordinate System
+
+The attractor equations produce points in "math space" — coordinates
+that might range from -2 to +2, or -5 to +5, depending on the formula.
+
+The app automatically:
+1. Runs 5,000 sample points to find the min/max x and y values
+2. Calculates a scale factor to fit that range onto the canvas
+3. Centers the shape perfectly every time
+
+This is why switching attractor types doesn't send the shape flying
+off screen — the bounds are always recalculated and rescaled.
+
+---
+
+## Controls Reference
+
+| Control | What it does | Math it changes |
+|---------|-------------|-----------------|
+| Attractor Type | Switches equations | Entire formula |
+| Morph Speed | How fast t advances | Rate of interpolation |
+| Points/Frame | Points drawn each frame | Iteration count per tick |
+| Persistence | Trail fade speed | Alpha of black overlay |
+| Color Palette | Colors used | Visual only, not math |
+| Random Jump | Picks random a,b,c,d | Target parameters |
+| Clear Canvas | Wipes the screen | Resets offscreen buffer |
+
+---
+
+## What to Explore Next
+
+Once you're comfortable with this, these topics go deeper:
+
+### Immediate next steps
+- **Add your own presets** — put new rows of numbers in the PRESETS
+  arrays in the code and the animation will morph through them
+- **Change the point size** — find `fillRect(..., 1.5, 1.5)` in the
+  code and change 1.5 to 3 for bigger dots, 0.5 for finer detail
+
+### Deeper math
+- **Complex numbers** — the Simone attractor secretly uses them.
+  Learning complex numbers unlocks Mandelbrot sets, Julia sets,
+  and a whole world of fractal geometry
+- **Lyapunov exponents** — a number that measures HOW chaotic a
+  system is. Positive = chaotic, negative = stable, zero = the edge
+- **Bifurcation diagrams** — shows how a system transitions from
+  orderly to chaotic as a parameter changes
+- **Iterated Function Systems (IFS)** — used to draw fractals like
+  the Sierpinski triangle and Barnsley fern
+
+### Better tools
+- **Python + datashader** — renders millions of points with proper
+  density-based coloring. The professional tool for attractor art.
+- **GLSL shaders** — run the iteration on the GPU instead of CPU.
+  Millions of points per frame, real-time at 60fps.
+- **Manim** — math animation library used by 3Blue1Brown on YouTube.
+
+### Good resources
+- "Chaos" by James Gleick (book) — the story of chaos theory
+- "The Fractal Geometry of Nature" by Benoit Mandelbrot (book)
+- 3Blue1Brown on YouTube — best visual math explanations anywhere
+- paulbourke.net/fractals — hundreds of attractor types with images
+
+---
+
+## Glossary
+
+| Term | Meaning |
+|------|---------|
+| Iteration | Applying a formula to its own output, repeatedly |
+| Attractor | The pattern a chaotic system settles into (without truly settling) |
+| Strange attractor | An attractor with fractal, non-repeating structure |
+| Parameter | A constant in the equation (a, b, c, d) that shapes the system |
+| Interpolation | Smoothly blending between two values |
+| Easing | Making interpolation start/end smoothly instead of linearly |
+| Chaos | Extreme sensitivity to initial conditions — tiny changes, huge effects |
+| Quadratic | Involving a number multiplied by itself (x²) |
+| sin / cos | Wave functions that oscillate between -1 and +1 |
+| Alpha | Transparency — 0 = invisible, 1 = fully opaque |
+| Persistence | How long old points stay visible before fading |
+
+---
+
+*Built with vanilla HTML + JavaScript Canvas API. No libraries. No dependencies.*
+*All the math runs in your browser, one point at a time.*
