@@ -114,6 +114,10 @@
   .big-btn:hover { box-shadow: 0 0 24px #7c3aed88; }
   body.immersive header, body.immersive .panel { display: none; }
   body.immersive .canvas-wrap { padding: 0; }
+  #panelDynamic { display: flex; flex-direction: column; gap: 16px; }
+  #audioPanel { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #1a0f2e; padding-top: 14px; margin-top: 16px; }
+  #audioEl { height: 30px; }
+  #audioTrackName { font-size: 10px; color: #8b7aa8; word-break: break-all; }
 </style>
 </head>
 <body>
@@ -137,7 +141,25 @@
       <div class="morph-bar-bg"><div class="morph-bar-fill" id="morphBar" style="width:0%"></div></div>
     </div>
   </div>
-  <div class="panel" id="panel"></div>
+  <div class="panel">
+    <div id="panelDynamic"></div>
+    <div id="audioPanel">
+      <div class="section-label">AUDIO REACTIVE</div>
+      <div id="audioTrackName">no track loaded</div>
+      <button class="big-btn" id="audioLoadBtn">🎵 LOAD TRACK</button>
+      <input type="file" id="audioFileInput" accept="audio/*" style="display:none">
+      <audio id="audioEl" controls style="width:100%;display:none;"></audio>
+      <button class="pill-btn" id="audioReactToggle" style="width:100%;display:none;">REACT: OFF</button>
+      <div class="slider-row" id="wobbleRow" style="display:none;margin-bottom:0;">
+        <div class="slider-header"><span class="slider-key">REACT AMOUNT</span><span class="slider-val" id="wobble-val">50%</span></div>
+        <input type="range" id="wobbleSlider" min="0" max="100" step="1" value="50">
+      </div>
+      <div class="slider-row" id="sensRow" style="display:none;margin-bottom:0;">
+        <div class="slider-header"><span class="slider-key">BEAT SENSITIVITY</span><span class="slider-val" id="sens-val">60%</span></div>
+        <input type="range" id="sensSlider" min="0" max="100" step="1" value="60">
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -193,7 +215,7 @@ const PALETTES = {
   "Solar":      ["#0a0500","#4a1500","#aa4400","#ff7700","#ffcc00","#fffff0"],
 };
 
-let state = { type: "de Jong", palette: "Plasma", points: 80000, speed: 0.004, playing: true };
+let state = { type: "de Jong", palette: "Plasma", points: 80000, speed: 0.004, playing: true, audioReactive: false, audioWobble: 0.5, beatSensitivity: 0.17 };
 let fromParams = {...ATTRACTORS["de Jong"].presets[0]};
 let toParams   = {...ATTRACTORS["de Jong"].presets[1]};
 let morphT = 0, presetIdx = 1;
@@ -202,6 +224,60 @@ let cachedBounds = null;
 const POINTS_PER_FRAME = 3000;
 
 function lerpParams(a,b,t){ const o={}; for(const k of Object.keys(a)) o[k]=a[k]+(b[k]-a[k])*t; return o; }
+
+// --- Audio-reactive analysis ---
+const audioEl=document.getElementById("audioEl");
+let audioCtx=null, analyser=null, freqData=null, audioGraphReady=false;
+let bandAvg={bass:0,mid:0,treble:0}, lastBeatTime=0, audioFrameCount=0;
+
+function bandEnergy(data,from,to){
+  let sum=0,count=0;
+  for(let i=from;i<to && i<data.length;i++){ sum+=data[i]; count++; }
+  return count?(sum/count)/255:0;
+}
+
+function setupAudioGraph(){
+  if(audioGraphReady) return;
+  audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  analyser=audioCtx.createAnalyser();
+  analyser.fftSize=1024;
+  freqData=new Uint8Array(analyser.frequencyBinCount);
+  const src=audioCtx.createMediaElementSource(audioEl);
+  src.connect(analyser);
+  analyser.connect(audioCtx.destination);
+  audioGraphReady=true;
+}
+
+function loadAudioFile(file){
+  audioEl.src=URL.createObjectURL(file);
+  audioEl.style.display="block";
+  document.getElementById("audioTrackName").textContent=file.name;
+  setupAudioGraph();
+  state.audioReactive=true;
+  bandAvg={bass:0,mid:0,treble:0};
+  const toggle=document.getElementById("audioReactToggle");
+  toggle.style.display="block"; toggle.textContent="REACT: ON"; toggle.classList.add("active");
+  document.getElementById("wobbleRow").style.display="block";
+  document.getElementById("sensRow").style.display="block";
+}
+
+document.getElementById("audioLoadBtn").onclick=()=>document.getElementById("audioFileInput").click();
+document.getElementById("audioFileInput").onchange=e=>{ if(e.target.files[0]) loadAudioFile(e.target.files[0]); };
+document.getElementById("audioReactToggle").onclick=function(){
+  state.audioReactive=!state.audioReactive;
+  this.textContent=state.audioReactive?"REACT: ON":"REACT: OFF";
+  this.classList.toggle("active",state.audioReactive);
+};
+document.getElementById("wobbleSlider").oninput=e=>{
+  state.audioWobble=parseInt(e.target.value)/100;
+  document.getElementById("wobble-val").textContent=e.target.value+"%";
+};
+document.getElementById("sensSlider").oninput=e=>{
+  const v=parseInt(e.target.value);
+  state.beatSensitivity=0.35-(v/100)*0.30;
+  document.getElementById("sens-val").textContent=v+"%";
+};
+audioEl.addEventListener("play",()=>{ if(audioCtx&&audioCtx.state==="suspended") audioCtx.resume(); });
 
 function nextPreset(){
   const p=ATTRACTORS[state.type].presets;
@@ -330,7 +406,31 @@ const _patchedLoop=function(){
   if(morphT>=1){morphT=1;cachedBounds=null;nextPreset();}
   document.getElementById("morphBar").style.width=(morphT*100)+"%";
   const ease=t=>t<0.5?2*t*t:-1+(4-2*t)*t;
-  const params=lerpParams(fromParams,toParams,ease(Math.min(morphT,1)));
+  const baseParams=lerpParams(fromParams,toParams,ease(Math.min(morphT,1)));
+  let params=baseParams;
+  if(state.audioReactive && audioGraphReady && !audioEl.paused){
+    analyser.getByteFrequencyData(freqData);
+    const n=freqData.length;
+    const bass=bandEnergy(freqData,0,Math.floor(n*0.06));
+    const mid=bandEnergy(freqData,Math.floor(n*0.06),Math.floor(n*0.25));
+    const treble=bandEnergy(freqData,Math.floor(n*0.25),Math.floor(n*0.6));
+    const alpha=0.06;
+    bandAvg.bass+=(bass-bandAvg.bass)*alpha;
+    bandAvg.mid+=(mid-bandAvg.mid)*alpha;
+    bandAvg.treble+=(treble-bandAvg.treble)*alpha;
+    params={...baseParams};
+    const keys=ATTRACTORS[state.type].params;
+    const devs=[bass-bandAvg.bass, mid-bandAvg.mid, treble-bandAvg.treble];
+    keys.forEach((k,i)=>{ params[k]+=devs[i%3]*state.audioWobble*2.2; });
+    const now=performance.now();
+    if(bass>0.12 && (bass-bandAvg.bass)>state.beatSensitivity && now-lastBeatTime>170){
+      lastBeatTime=now;
+      randomPreset();
+      cachedBounds=null;
+    }
+    audioFrameCount++;
+    if(audioFrameCount%90===0) cachedBounds=computeBounds(params);
+  }
   document.getElementById("eqOverlay").innerHTML=ATTRACTORS[state.type].eqs(params).join("<br>");
   ATTRACTORS[state.type].params.forEach(k=>{
     const el=document.getElementById("live-"+k); if(el)el.textContent=params[k].toFixed(3);
@@ -377,7 +477,7 @@ document.addEventListener("fullscreenchange",function(){
 });
 
 function buildPanel(){
-  const panel=document.getElementById("panel"); panel.innerHTML="";
+  const panel=document.getElementById("panelDynamic"); panel.innerHTML="";
   // Type buttons
   const ts=document.createElement("div"); ts.innerHTML=`<div class="section-label">ATTRACTOR TYPE</div>`;
   Object.keys(ATTRACTORS).forEach(t=>{
