@@ -7,7 +7,7 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    background: #05020f;
+    background: #05020f url("WhatsApp Image 2026-07-02 at 23.33.43.jpeg") center / cover no-repeat fixed;
     color: #e8e0f5;
     font-family: 'Courier New', monospace;
     height: 100vh;
@@ -36,6 +36,21 @@
   .canvas-wrap {
     flex: 1; display: flex; align-items: center;
     justify-content: center; padding: 12px; position: relative;
+    cursor: crosshair;
+  }
+  .click-hint {
+    position: absolute; top: 24px; right: 24px; font-size: 10px;
+    color: rgba(192,132,252,0.6); letter-spacing: 2px;
+    pointer-events: none; text-shadow: 0 0 8px #7c3aed;
+  }
+  .click-ripple {
+    position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px;
+    border-radius: 50%; border: 1px solid #c084fc; pointer-events: none;
+    animation: rippleFade 0.6s ease-out forwards;
+  }
+  @keyframes rippleFade {
+    0% { transform: scale(0.3); opacity: 0.9; }
+    100% { transform: scale(6); opacity: 0; }
   }
   canvas {
     border-radius: 6px; border: 1px solid #1a0f2e;
@@ -97,6 +112,8 @@
     box-shadow: 0 0 12px #7c3aed44; width: 100%; transition: box-shadow 0.2s;
   }
   .big-btn:hover { box-shadow: 0 0 24px #7c3aed88; }
+  body.immersive header, body.immersive .panel { display: none; }
+  body.immersive .canvas-wrap { padding: 0; }
 </style>
 </head>
 <body>
@@ -106,6 +123,7 @@
   <div class="header-right">
     <button class="pill-btn active" id="playBtn">⏸ PAUSE</button>
     <button class="pill-btn" id="snapBtn">⟳ NEW SHAPE</button>
+    <button class="pill-btn" id="fsBtn">⛶ FULL</button>
   </div>
 </header>
 
@@ -113,6 +131,7 @@
   <div class="canvas-wrap">
     <canvas id="c"></canvas>
     <div class="eq-overlay" id="eqOverlay"></div>
+    <div class="click-hint">CLICK IMAGE TO RESHAPE</div>
     <div class="morph-bar-wrap">
       <div class="morph-label">MORPHING…</div>
       <div class="morph-bar-bg"><div class="morph-bar-fill" id="morphBar" style="width:0%"></div></div>
@@ -199,21 +218,90 @@ function randomPreset(){
   morphT=0;
 }
 
+const BG_IMAGE_SRC = "WhatsApp Image 2026-07-02 at 23.33.43.jpeg";
+let bgSampleCanvas=null, bgSampleCtx=null, bgImageReady=false;
+
+function loadBgSampler(src){
+  bgImageReady=false;
+  const img=new Image();
+  img.onload=function(){
+    bgSampleCanvas=document.createElement("canvas");
+    bgSampleCanvas.width=img.naturalWidth; bgSampleCanvas.height=img.naturalHeight;
+    bgSampleCtx=bgSampleCanvas.getContext("2d");
+    bgSampleCtx.drawImage(img,0,0);
+    bgImageReady=true;
+  };
+  img.src=src;
+}
+loadBgSampler(BG_IMAGE_SRC);
+
+function loadNewPhoto(file){
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    document.body.style.backgroundImage=`url("${ev.target.result}")`;
+    loadBgSampler(ev.target.result);
+  };
+  reader.readAsDataURL(file);
+}
+
+function paramsFromImagePoint(clientX,clientY){
+  if(!bgImageReady) return null;
+  const vw=document.documentElement.clientWidth, vh=document.documentElement.clientHeight;
+  const iw=bgSampleCanvas.width, ih=bgSampleCanvas.height;
+  const scale=Math.max(vw/iw, vh/ih);
+  const dw=iw*scale, dh=ih*scale;
+  const offX=(vw-dw)/2, offY=(vh-dh)/2;
+  let ix=(clientX-offX)/scale, iy=(clientY-offY)/scale;
+  ix=Math.min(Math.max(ix,0),iw-1); iy=Math.min(Math.max(iy,0),ih-1);
+  const toRange=v=>(v*4)-2;
+  try{
+    const px=bgSampleCtx.getImageData(Math.floor(ix),Math.floor(iy),1,1).data;
+    const r=px[0]/255, g=px[1]/255, b=px[2]/255, bright=(px[0]+px[1]+px[2])/(3*255);
+    return {a:toRange(r), b:toRange(g), c:toRange(b), d:toRange(bright)};
+  }catch(err){
+    // Canvas is cross-origin tainted under file:// in some browsers — fall back
+    // to the click's position within the image so the feature still works.
+    const fx=ix/iw, fy=iy/ih;
+    return {a:toRange(fx), b:toRange(fy), c:toRange(1-fx), d:toRange(1-fy)};
+  }
+}
+
+function reshapeFromImagePoint(clientX,clientY){
+  const sample=paramsFromImagePoint(clientX,clientY);
+  if(!sample) return;
+  fromParams=lerpParams(fromParams,toParams,morphT);
+  const target={};
+  ATTRACTORS[state.type].params.forEach(k=>target[k]=sample[k]);
+  toParams=target;
+  morphT=0;
+  cachedBounds=null;
+}
+
 const canvas=document.getElementById("c");
 const ctx=canvas.getContext("2d");
 let offscreen, offCtx;
 
 function resizeCanvas(){
   const wrap=canvas.parentElement;
-  const size=Math.min(wrap.clientWidth-32,wrap.clientHeight-32,700);
+  const cap=document.body.classList.contains("immersive")?2000:700;
+  const size=Math.min(wrap.clientWidth-32,wrap.clientHeight-32,cap);
   canvas.width=size; canvas.height=size;
   offscreen=document.createElement("canvas");
   offscreen.width=size; offscreen.height=size;
   offCtx=offscreen.getContext("2d");
-  offCtx.fillStyle="#05020f"; offCtx.fillRect(0,0,size,size);
 }
 resizeCanvas();
 window.addEventListener("resize",resizeCanvas);
+
+document.querySelector(".canvas-wrap").addEventListener("click",function(e){
+  reshapeFromImagePoint(e.clientX,e.clientY);
+  const ripple=document.createElement("div");
+  ripple.className="click-ripple";
+  ripple.style.left=(e.clientX-this.getBoundingClientRect().left)+"px";
+  ripple.style.top=(e.clientY-this.getBoundingClientRect().top)+"px";
+  this.appendChild(ripple);
+  setTimeout(()=>ripple.remove(),600);
+});
 
 function computeBounds(params){
   const att=ATTRACTORS[state.type];
@@ -249,8 +337,10 @@ const _patchedLoop=function(){
     const bar=document.getElementById("bar-"+k); if(bar)bar.style.width=(((params[k]+2)/4)*100).toFixed(1)+"%";
   });
   const W=canvas.width,H=canvas.height;
-  offCtx.globalAlpha=1-window._trail;
-  offCtx.fillStyle="#05020f"; offCtx.fillRect(0,0,W,H); offCtx.globalAlpha=1;
+  offCtx.globalCompositeOperation="destination-out";
+  offCtx.fillStyle="rgba(0,0,0,"+(1-window._trail)+")";
+  offCtx.fillRect(0,0,W,H);
+  offCtx.globalCompositeOperation="source-over";
   const att=ATTRACTORS[state.type],pal=PALETTES[state.palette];
   if(!cachedBounds)cachedBounds=computeBounds(params);
   const sc=getScale(cachedBounds),ppf=window._ppf;
@@ -262,7 +352,7 @@ const _patchedLoop=function(){
     offCtx.fillStyle=pal[Math.floor((i/ppf)*pal.length)];
     offCtx.fillRect(iterX*sc.scale+sc.offX,iterY*sc.scale+sc.offY,1.5,1.5);
   }
-  offCtx.globalAlpha=1; ctx.drawImage(offscreen,0,0);
+  offCtx.globalAlpha=1; ctx.clearRect(0,0,W,H); ctx.drawImage(offscreen,0,0);
   requestAnimationFrame(_patchedLoop);
 };
 
@@ -274,6 +364,17 @@ document.getElementById("playBtn").onclick=function(){
 document.getElementById("snapBtn").onclick=function(){
   randomPreset(); cachedBounds=null; iterX=0.1; iterY=0.1;
 };
+document.getElementById("fsBtn").onclick=function(){
+  document.body.classList.add("immersive");
+  if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
+  resizeCanvas();
+};
+document.addEventListener("fullscreenchange",function(){
+  if(!document.fullscreenElement){
+    document.body.classList.remove("immersive");
+    resizeCanvas();
+  }
+});
 
 function buildPanel(){
   const panel=document.getElementById("panel"); panel.innerHTML="";
@@ -285,7 +386,7 @@ function buildPanel(){
       state.type=t; presetIdx=0;
       fromParams={...ATTRACTORS[t].presets[0]}; toParams={...ATTRACTORS[t].presets[1]};
       morphT=0; cachedBounds=null; iterX=0.1; iterY=0.1;
-      offCtx.fillStyle="#05020f"; offCtx.fillRect(0,0,offscreen.width,offscreen.height);
+      offCtx.clearRect(0,0,offscreen.width,offscreen.height);
       buildPanel();
     };
     ts.appendChild(btn);
@@ -328,12 +429,20 @@ function buildPanel(){
     btn.onclick=()=>{ state.palette=name; ps.querySelectorAll(".palette-btn").forEach(b=>b.classList.remove("active")); btn.classList.add("active"); };
     ps.appendChild(btn);
   }); panel.appendChild(ps);
+  // DJ photo
+  const phs=document.createElement("div"); phs.innerHTML=`<div class="section-label">DJ PHOTO</div>`;
+  const pb=document.createElement("button"); pb.className="big-btn"; pb.textContent="📷 LOAD PHOTO";
+  const pInput=document.createElement("input"); pInput.type="file"; pInput.accept="image/*"; pInput.style.display="none";
+  pInput.onchange=e=>{ if(e.target.files[0]) loadNewPhoto(e.target.files[0]); };
+  pb.onclick=()=>pInput.click();
+  phs.appendChild(pb); phs.appendChild(pInput); panel.appendChild(phs);
   // Buttons
-  const rb=document.createElement("button"); rb.className="big-btn"; rb.textContent="◈ RANDOM JUMP";
+  const rb=document.createElement("button"); rb.className="big-btn"; rb.style.cssText="margin-top:8px";
+  rb.textContent="◈ RANDOM JUMP";
   rb.onclick=()=>{ randomPreset(); cachedBounds=null; iterX=0.1; iterY=0.1; }; panel.appendChild(rb);
   const cb=document.createElement("button"); cb.className="big-btn"; cb.style.cssText="margin-top:-8px;border-color:#2a1040;color:#6b5080";
   cb.textContent="✕ CLEAR CANVAS";
-  cb.onclick=()=>{ offCtx.fillStyle="#05020f"; offCtx.fillRect(0,0,offscreen.width,offscreen.height); iterX=0.1; iterY=0.1; };
+  cb.onclick=()=>{ offCtx.clearRect(0,0,offscreen.width,offscreen.height); iterX=0.1; iterY=0.1; };
   panel.appendChild(cb);
 }
 
