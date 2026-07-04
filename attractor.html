@@ -204,7 +204,69 @@ const ATTRACTORS = {
       {a:0.95,b:-0.55},{a:-0.50,b:1.30},{a:1.10,b:-0.80},
     ],
   },
+  "Lorenz": {
+    dim: 3, dt: 0.006, init: [0.1, 0, 0],
+    eqs: (p) => [`dx = ${p.a.toFixed(2)}(y−x)`, `dy = x(${p.b.toFixed(2)}−z)−y`, `dz = xy − ${p.c.toFixed(2)}z`],
+    params: ["a","b","c"],
+    range: { a:[8,12], b:[24,35], c:[2,3] },
+    deriv: (x,y,z,p) => [p.a*(y-x), x*(p.b-z)-y, x*y-p.c*z],
+    presets: [
+      {a:10,b:28,c:2.667},{a:10,b:35,c:3},{a:12,b:30,c:2.5},
+      {a:9,b:26,c:2.8},{a:11,b:32,c:2.3},
+    ],
+  },
+  "Rössler": {
+    dim: 3, dt: 0.012, init: [1, 1, 1],
+    eqs: (p) => [`dx = −y−z`, `dy = x+${p.a.toFixed(2)}y`, `dz = ${p.b.toFixed(2)}+z(x−${p.c.toFixed(2)})`],
+    params: ["a","b","c"],
+    range: { a:[0.1,0.3], b:[0.1,0.3], c:[4,18] },
+    deriv: (x,y,z,p) => [-y-z, x+p.a*y, p.b+z*(x-p.c)],
+    presets: [
+      {a:0.2,b:0.2,c:5.7},{a:0.2,b:0.2,c:14},{a:0.15,b:0.2,c:10},
+      {a:0.25,b:0.3,c:8},{a:0.1,b:0.1,c:16},
+    ],
+  },
+  "Aizawa": {
+    dim: 3, dt: 0.01, init: [0.1, 0, 0],
+    eqs: (p) => [`dx = (z−${p.b.toFixed(2)})x − ${p.d.toFixed(2)}y`, `dy = ${p.d.toFixed(2)}x + (z−${p.b.toFixed(2)})y`, `dz = ${p.c.toFixed(2)}+${p.a.toFixed(2)}z−z³/3−(x²+y²)(1+${p.e.toFixed(2)}z)+${p.f.toFixed(2)}zx³`],
+    params: ["a","b","c","d","e","f"],
+    range: { a:[0.7,1.1], b:[0.5,0.9], c:[0.4,0.8], d:[2.5,4.5], e:[0.1,0.4], f:[0.05,0.2] },
+    deriv: (x,y,z,p) => [
+      (z-p.b)*x - p.d*y,
+      p.d*x + (z-p.b)*y,
+      p.c + p.a*z - (z*z*z)/3 - (x*x+y*y)*(1+p.e*z) + p.f*z*x*x*x
+    ],
+    presets: [
+      {a:0.95,b:0.7,c:0.6,d:3.5,e:0.25,f:0.1},{a:0.9,b:0.65,c:0.55,d:3.2,e:0.3,f:0.12},
+      {a:1.0,b:0.75,c:0.65,d:3.8,e:0.2,f:0.08},{a:0.85,b:0.6,c:0.5,d:3.0,e:0.35,f:0.15},
+    ],
+  },
+  "Thomas": {
+    dim: 3, dt: 0.03, init: [0.1, 0, 0],
+    eqs: (p) => [`dx = sin(y) − ${p.a.toFixed(3)}x`, `dy = sin(z) − ${p.a.toFixed(3)}y`, `dz = sin(x) − ${p.a.toFixed(3)}z`],
+    params: ["a"],
+    range: { a:[0.13,0.21] },
+    deriv: (x,y,z,p) => [Math.sin(y)-p.a*x, Math.sin(z)-p.a*y, Math.sin(x)-p.a*z],
+    presets: [ {a:0.19}, {a:0.16}, {a:0.14}, {a:0.2} ],
+  },
+  "Halvorsen": {
+    dim: 3, dt: 0.005, init: [-1, 0, 0],
+    eqs: (p) => [`dx = −${p.a.toFixed(2)}x−4y−4z−y²`, `dy = −${p.a.toFixed(2)}y−4z−4x−z²`, `dz = −${p.a.toFixed(2)}z−4x−4y−x²`],
+    params: ["a"],
+    range: { a:[1.35,1.45] },
+    deriv: (x,y,z,p) => [
+      -p.a*x - 4*y - 4*z - y*y,
+      -p.a*y - 4*z - 4*x - z*z,
+      -p.a*z - 4*x - 4*y - x*x
+    ],
+    presets: [ {a:1.4}, {a:1.38}, {a:1.42}, {a:1.36} ],
+  },
 };
+
+function getRange(typeName,k){
+  const t=ATTRACTORS[typeName];
+  return (t.range && t.range[k]) || [-2,2];
+}
 
 const PALETTES = {
   "Plasma":     ["#200010","#6a0035","#c8003a","#ff6b35","#f7c59f","#fff8f0"],
@@ -220,10 +282,19 @@ let fromParams = {...ATTRACTORS["de Jong"].presets[0]};
 let toParams   = {...ATTRACTORS["de Jong"].presets[1]};
 let morphT = 0, presetIdx = 1;
 let iterX = 0.1, iterY = 0.1;
+let flowX = 0.1, flowY = 0, flowZ = 0, rotAngle = 0;
 let cachedBounds = null;
+let lastRenderParams = fromParams;
 const POINTS_PER_FRAME = 3000;
 
 function lerpParams(a,b,t){ const o={}; for(const k of Object.keys(a)) o[k]=a[k]+(b[k]-a[k])*t; return o; }
+
+function resetFlowState(){
+  const att=ATTRACTORS[state.type];
+  const init=att.init||[0.1,0.1,0.1];
+  flowX=init[0]; flowY=init[1]; flowZ=init[2];
+  iterX=0.1; iterY=0.1;
+}
 
 // --- Audio-reactive analysis ---
 const audioEl=document.getElementById("audioEl");
@@ -290,7 +361,10 @@ function nextPreset(){
 function randomPreset(){
   fromParams=lerpParams(fromParams,toParams,morphT);
   toParams={};
-  ATTRACTORS[state.type].params.forEach(k=>toParams[k]=parseFloat((Math.random()*4-2).toFixed(3)));
+  ATTRACTORS[state.type].params.forEach(k=>{
+    const r=getRange(state.type,k);
+    toParams[k]=parseFloat((r[0]+Math.random()*(r[1]-r[0])).toFixed(3));
+  });
   morphT=0;
 }
 
@@ -329,16 +403,21 @@ function paramsFromImagePoint(clientX,clientY){
   const offX=(vw-dw)/2, offY=(vh-dh)/2;
   let ix=(clientX-offX)/scale, iy=(clientY-offY)/scale;
   ix=Math.min(Math.max(ix,0),iw-1); iy=Math.min(Math.max(iy,0),ih-1);
-  const toRange=v=>(v*4)-2;
+  const keys=ATTRACTORS[state.type].params;
+  const mapTo=(v,k)=>{ const r=getRange(state.type,k); return r[0]+v*(r[1]-r[0]); };
   try{
     const px=bgSampleCtx.getImageData(Math.floor(ix),Math.floor(iy),1,1).data;
     const r=px[0]/255, g=px[1]/255, b=px[2]/255, bright=(px[0]+px[1]+px[2])/(3*255);
-    return {a:toRange(r), b:toRange(g), c:toRange(b), d:toRange(bright)};
+    const src=[r,g,b,bright];
+    const out={}; keys.forEach((k,i)=>out[k]=mapTo(src[i%4],k));
+    return out;
   }catch(err){
     // Canvas is cross-origin tainted under file:// in some browsers — fall back
     // to the click's position within the image so the feature still works.
     const fx=ix/iw, fy=iy/ih;
-    return {a:toRange(fx), b:toRange(fy), c:toRange(1-fx), d:toRange(1-fy)};
+    const src=[fx,fy,1-fx,1-fy];
+    const out={}; keys.forEach((k,i)=>out[k]=mapTo(src[i%4],k));
+    return out;
   }
 }
 
@@ -381,6 +460,24 @@ document.querySelector(".canvas-wrap").addEventListener("click",function(e){
 
 function computeBounds(params){
   const att=ATTRACTORS[state.type];
+  if(att.dim===3){
+    const init=att.init||[0.1,0.1,0.1];
+    let x=init[0],y=init[1],z=init[2];
+    for(let i=0;i<1000;i++){
+      const d=att.deriv(x,y,z,params);
+      x+=d[0]*att.dt; y+=d[1]*att.dt; z+=d[2]*att.dt;
+      if(!isFinite(x)||!isFinite(y)||!isFinite(z)){x=init[0];y=init[1];z=init[2];}
+    }
+    let maxR=0.001,mnY=Infinity,mxY=-Infinity;
+    for(let i=0;i<8000;i++){
+      const d=att.deriv(x,y,z,params);
+      x+=d[0]*att.dt; y+=d[1]*att.dt; z+=d[2]*att.dt;
+      if(!isFinite(x)||!isFinite(y)||!isFinite(z)){x=init[0];y=init[1];z=init[2];continue;}
+      const r=Math.sqrt(x*x+z*z); if(r>maxR)maxR=r;
+      if(y<mnY)mnY=y; if(y>mxY)mxY=y;
+    }
+    return {minX:-maxR,maxX:maxR,minY:mnY,maxY:mxY};
+  }
   let x=0.1,y=0.1,mnX=Infinity,mxX=-Infinity,mnY=Infinity,mxY=-Infinity;
   for(let i=0;i<5000;i++){
     const r=att.fn(x,y,params);
@@ -396,6 +493,49 @@ function getScale(b){
   const rX=b.maxX-b.minX||1,rY=b.maxY-b.minY||1;
   const scale=Math.min((W-pad*2)/rX,(H-pad*2)/rY);
   return {scale,offX:(W-rX*scale)/2-b.minX*scale,offY:(H-rY*scale)/2-b.minY*scale};
+}
+
+function exportHighRes(){
+  const att=ATTRACTORS[state.type], pal=PALETTES[state.palette];
+  const params=lastRenderParams;
+  const size=1600;
+  const tmp=document.createElement("canvas"); tmp.width=size; tmp.height=size;
+  const tctx=tmp.getContext("2d");
+  tctx.fillStyle="#05020f"; tctx.fillRect(0,0,size,size);
+  const bounds=computeBounds(params);
+  const rX=bounds.maxX-bounds.minX||1, rY=bounds.maxY-bounds.minY||1, pad=size*0.06;
+  const scale=Math.min((size-pad*2)/rX,(size-pad*2)/rY);
+  const offX=(size-rX*scale)/2-bounds.minX*scale, offY=(size-rY*scale)/2-bounds.minY*scale;
+  const N=400000;
+  tctx.globalCompositeOperation="lighter";
+  tctx.globalAlpha=0.5;
+  if(att.dim===3){
+    const init=att.init||[0.1,0.1,0.1];
+    let x=init[0],y=init[1],z=init[2],angle=0;
+    for(let i=0;i<2000;i++){ const d=att.deriv(x,y,z,params); x+=d[0]*att.dt;y+=d[1]*att.dt;z+=d[2]*att.dt; }
+    for(let i=0;i<N;i++){
+      const d=att.deriv(x,y,z,params); x+=d[0]*att.dt;y+=d[1]*att.dt;z+=d[2]*att.dt;
+      if(!isFinite(x)||!isFinite(y)||!isFinite(z)){x=init[0];y=init[1];z=init[2];continue;}
+      angle+=0.00003;
+      const px=x*Math.cos(angle)+z*Math.sin(angle), py=y;
+      tctx.fillStyle=pal[Math.floor((i/N)*pal.length)];
+      tctx.fillRect(px*scale+offX,py*scale+offY,1,1);
+    }
+  } else {
+    let x=0.1,y=0.1;
+    for(let i=0;i<N;i++){
+      const r=att.fn(x,y,params);
+      if(!isFinite(r[0])||!isFinite(r[1])){x=0.1;y=0.1;continue;}
+      x=r[0];y=r[1];
+      tctx.fillStyle=pal[Math.floor((i/N)*pal.length)];
+      tctx.fillRect(x*scale+offX,y*scale+offY,1,1);
+    }
+  }
+  tctx.globalAlpha=1; tctx.globalCompositeOperation="source-over";
+  const link=document.createElement("a");
+  link.download=`attractor-${state.type.replace(/\s+/g,"_")}-${Date.now()}.png`;
+  link.href=tmp.toDataURL("image/png");
+  link.click();
 }
 
 window._ppf=POINTS_PER_FRAME; window._trail=0.96;
@@ -421,7 +561,10 @@ const _patchedLoop=function(){
     params={...baseParams};
     const keys=ATTRACTORS[state.type].params;
     const devs=[bass-bandAvg.bass, mid-bandAvg.mid, treble-bandAvg.treble];
-    keys.forEach((k,i)=>{ params[k]+=devs[i%3]*state.audioWobble*2.2; });
+    keys.forEach((k,i)=>{
+      const r=getRange(state.type,k), span=(r[1]-r[0])/4;
+      params[k]+=devs[i%3]*state.audioWobble*2.2*span;
+    });
     const now=performance.now();
     if(bass>0.12 && (bass-bandAvg.bass)>state.beatSensitivity && now-lastBeatTime>170){
       lastBeatTime=now;
@@ -431,28 +574,44 @@ const _patchedLoop=function(){
     audioFrameCount++;
     if(audioFrameCount%90===0) cachedBounds=computeBounds(params);
   }
+  lastRenderParams=params;
   document.getElementById("eqOverlay").innerHTML=ATTRACTORS[state.type].eqs(params).join("<br>");
   ATTRACTORS[state.type].params.forEach(k=>{
     const el=document.getElementById("live-"+k); if(el)el.textContent=params[k].toFixed(3);
-    const bar=document.getElementById("bar-"+k); if(bar)bar.style.width=(((params[k]+2)/4)*100).toFixed(1)+"%";
+    const bar=document.getElementById("bar-"+k);
+    if(bar){ const r=getRange(state.type,k); bar.style.width=(((params[k]-r[0])/(r[1]-r[0]))*100).toFixed(1)+"%"; }
   });
   const W=canvas.width,H=canvas.height;
   offCtx.globalCompositeOperation="destination-out";
   offCtx.fillStyle="rgba(0,0,0,"+(1-window._trail)+")";
   offCtx.fillRect(0,0,W,H);
-  offCtx.globalCompositeOperation="source-over";
+  offCtx.globalCompositeOperation="lighter";
   const att=ATTRACTORS[state.type],pal=PALETTES[state.palette];
   if(!cachedBounds)cachedBounds=computeBounds(params);
   const sc=getScale(cachedBounds),ppf=window._ppf;
   offCtx.globalAlpha=0.4;
-  for(let i=0;i<ppf;i++){
-    const r=att.fn(iterX,iterY,params);
-    if(!isFinite(r[0])||!isFinite(r[1])){iterX=0.1;iterY=0.1;continue;}
-    iterX=r[0];iterY=r[1];
-    offCtx.fillStyle=pal[Math.floor((i/ppf)*pal.length)];
-    offCtx.fillRect(iterX*sc.scale+sc.offX,iterY*sc.scale+sc.offY,1.5,1.5);
+  if(att.dim===3){
+    rotAngle+=0.006;
+    const cs=Math.cos(rotAngle), sn=Math.sin(rotAngle), init=att.init||[0.1,0.1,0.1];
+    for(let i=0;i<ppf;i++){
+      const d=att.deriv(flowX,flowY,flowZ,params);
+      flowX+=d[0]*att.dt; flowY+=d[1]*att.dt; flowZ+=d[2]*att.dt;
+      if(!isFinite(flowX)||!isFinite(flowY)||!isFinite(flowZ)){flowX=init[0];flowY=init[1];flowZ=init[2];continue;}
+      const px=flowX*cs+flowZ*sn, py=flowY;
+      offCtx.fillStyle=pal[Math.floor((i/ppf)*pal.length)];
+      offCtx.fillRect(px*sc.scale+sc.offX,py*sc.scale+sc.offY,1.5,1.5);
+    }
+  } else {
+    for(let i=0;i<ppf;i++){
+      const r=att.fn(iterX,iterY,params);
+      if(!isFinite(r[0])||!isFinite(r[1])){iterX=0.1;iterY=0.1;continue;}
+      iterX=r[0];iterY=r[1];
+      offCtx.fillStyle=pal[Math.floor((i/ppf)*pal.length)];
+      offCtx.fillRect(iterX*sc.scale+sc.offX,iterY*sc.scale+sc.offY,1.5,1.5);
+    }
   }
-  offCtx.globalAlpha=1; ctx.clearRect(0,0,W,H); ctx.drawImage(offscreen,0,0);
+  offCtx.globalAlpha=1; offCtx.globalCompositeOperation="source-over";
+  ctx.clearRect(0,0,W,H); ctx.drawImage(offscreen,0,0);
   requestAnimationFrame(_patchedLoop);
 };
 
@@ -462,7 +621,7 @@ document.getElementById("playBtn").onclick=function(){
   this.classList.toggle("active",state.playing);
 };
 document.getElementById("snapBtn").onclick=function(){
-  randomPreset(); cachedBounds=null; iterX=0.1; iterY=0.1;
+  randomPreset(); cachedBounds=null; resetFlowState();
 };
 document.getElementById("fsBtn").onclick=function(){
   document.body.classList.add("immersive");
@@ -485,7 +644,7 @@ function buildPanel(){
     btn.onclick=()=>{
       state.type=t; presetIdx=0;
       fromParams={...ATTRACTORS[t].presets[0]}; toParams={...ATTRACTORS[t].presets[1]};
-      morphT=0; cachedBounds=null; iterX=0.1; iterY=0.1;
+      morphT=0; cachedBounds=null; rotAngle=0; resetFlowState();
       offCtx.clearRect(0,0,offscreen.width,offscreen.height);
       buildPanel();
     };
@@ -511,7 +670,7 @@ function buildPanel(){
   const ds=document.createElement("div"); ds.innerHTML=`<div class="section-label">DENSITY</div>`;
   const dr=document.createElement("div"); dr.className="slider-row";
   dr.innerHTML=`<div class="slider-header"><span class="slider-key">POINTS/FRAME</span><span class="slider-val" id="ppf-val">${POINTS_PER_FRAME.toLocaleString()}</span></div>
-  <input type="range" min="500" max="8000" step="500" value="${POINTS_PER_FRAME}">`;
+  <input type="range" min="500" max="20000" step="500" value="${POINTS_PER_FRAME}">`;
   dr.querySelector("input").oninput=e=>{window._ppf=parseInt(e.target.value);document.getElementById("ppf-val").textContent=parseInt(e.target.value).toLocaleString();};
   ds.appendChild(dr); panel.appendChild(ds);
   // Trail
@@ -539,11 +698,15 @@ function buildPanel(){
   // Buttons
   const rb=document.createElement("button"); rb.className="big-btn"; rb.style.cssText="margin-top:8px";
   rb.textContent="◈ RANDOM JUMP";
-  rb.onclick=()=>{ randomPreset(); cachedBounds=null; iterX=0.1; iterY=0.1; }; panel.appendChild(rb);
+  rb.onclick=()=>{ randomPreset(); cachedBounds=null; resetFlowState(); }; panel.appendChild(rb);
   const cb=document.createElement("button"); cb.className="big-btn"; cb.style.cssText="margin-top:-8px;border-color:#2a1040;color:#6b5080";
   cb.textContent="✕ CLEAR CANVAS";
-  cb.onclick=()=>{ offCtx.clearRect(0,0,offscreen.width,offscreen.height); iterX=0.1; iterY=0.1; };
+  cb.onclick=()=>{ offCtx.clearRect(0,0,offscreen.width,offscreen.height); resetFlowState(); };
   panel.appendChild(cb);
+  const eb=document.createElement("button"); eb.className="big-btn"; eb.style.cssText="margin-top:-8px;";
+  eb.textContent="⬇ EXPORT HIGH-RES PNG";
+  eb.onclick=exportHighRes;
+  panel.appendChild(eb);
 }
 
 buildPanel();
