@@ -7,12 +7,7 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    background-color: #05020f;
-    background-image: linear-gradient(rgba(5,2,15,0.72), rgba(5,2,15,0.72)), url("WhatsApp Image 2026-07-02 at 23.33.43.jpeg");
-    background-size: cover, cover;
-    background-position: center, center;
-    background-repeat: no-repeat, no-repeat;
-    background-attachment: fixed, fixed;
+    background: #05020f;
     color: #e8e0f5;
     font-family: 'Courier New', monospace;
     height: 100vh;
@@ -42,6 +37,11 @@
     flex: 1; display: flex; align-items: center;
     justify-content: center; padding: 12px; position: relative;
     cursor: crosshair;
+    background-color: #05020f;
+    background-image: linear-gradient(rgba(5,2,15,0.72), rgba(5,2,15,0.72)), url("WhatsApp Image 2026-07-02 at 23.33.43.jpeg");
+    background-size: cover, cover;
+    background-position: center, center;
+    background-repeat: no-repeat, no-repeat;
   }
   .click-hint {
     position: absolute; top: 24px; right: 24px; font-size: 10px;
@@ -393,7 +393,7 @@ loadBgSampler(BG_IMAGE_SRC);
 function loadNewPhoto(file){
   const reader=new FileReader();
   reader.onload=function(ev){
-    document.body.style.backgroundImage=`linear-gradient(rgba(5,2,15,0.72), rgba(5,2,15,0.72)), url("${ev.target.result}")`;
+    document.querySelector(".canvas-wrap").style.backgroundImage=`linear-gradient(rgba(5,2,15,0.72), rgba(5,2,15,0.72)), url("${ev.target.result}")`;
     loadBgSampler(ev.target.result);
   };
   reader.readAsDataURL(file);
@@ -401,12 +401,13 @@ function loadNewPhoto(file){
 
 function paramsFromImagePoint(clientX,clientY){
   if(!bgImageReady) return null;
-  const vw=document.documentElement.clientWidth, vh=document.documentElement.clientHeight;
+  const rect=document.querySelector(".canvas-wrap").getBoundingClientRect();
+  const vw=rect.width, vh=rect.height;
   const iw=bgSampleCanvas.width, ih=bgSampleCanvas.height;
   const scale=Math.max(vw/iw, vh/ih);
   const dw=iw*scale, dh=ih*scale;
   const offX=(vw-dw)/2, offY=(vh-dh)/2;
-  let ix=(clientX-offX)/scale, iy=(clientY-offY)/scale;
+  let ix=(clientX-rect.left-offX)/scale, iy=(clientY-rect.top-offY)/scale;
   ix=Math.min(Math.max(ix,0),iw-1); iy=Math.min(Math.max(iy,0),ih-1);
   const keys=ATTRACTORS[state.type].params;
   const mapTo=(v,k)=>{ const r=getRange(state.type,k); return r[0]+v*(r[1]-r[0]); };
