@@ -393,7 +393,7 @@ loadBgSampler(BG_IMAGE_SRC);
 function loadNewPhoto(file){
   const reader=new FileReader();
   reader.onload=function(ev){
-    document.body.style.backgroundImage=`url("${ev.target.result}")`;
+    document.body.style.backgroundImage=`linear-gradient(rgba(5,2,15,0.72), rgba(5,2,15,0.72)), url("${ev.target.result}")`;
     loadBgSampler(ev.target.result);
   };
   reader.readAsDataURL(file);
