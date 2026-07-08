@@ -117,12 +117,17 @@
     box-shadow: 0 0 12px #7c3aed44; width: 100%; transition: box-shadow 0.2s;
   }
   .big-btn:hover { box-shadow: 0 0 24px #7c3aed88; }
+  .big-btn.recording { border-color: #ff4444; color: #ff6b6b; box-shadow: 0 0 16px #ff444488; }
   body.immersive header, body.immersive .panel { display: none; }
   body.immersive .canvas-wrap { padding: 0; }
   #panelDynamic { display: flex; flex-direction: column; gap: 16px; }
   #audioPanel { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #1a0f2e; padding-top: 14px; margin-top: 16px; }
   #audioEl { height: 30px; }
   #audioTrackName { font-size: 10px; color: #8b7aa8; word-break: break-all; }
+  #recordPanel { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #1a0f2e; padding-top: 14px; margin-top: 16px; }
+  #recordStatus { font-size: 10px; color: #ff6b6b; letter-spacing: 2px; text-align: center; }
+  @keyframes recPulse { 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+  #recordStatus.live { animation: recPulse 1s ease-in-out infinite; }
 </style>
 </head>
 <body>
@@ -163,6 +168,11 @@
         <div class="slider-header"><span class="slider-key">BEAT SENSITIVITY</span><span class="slider-val" id="sens-val">60%</span></div>
         <input type="range" id="sensSlider" min="0" max="100" step="1" value="60">
       </div>
+    </div>
+    <div id="recordPanel">
+      <div class="section-label">RECORD VIDEO LOOP</div>
+      <button class="big-btn" id="recordBtn">⏺ RECORD VIDEO</button>
+      <div id="recordStatus" style="display:none;">● REC 0:00</div>
     </div>
   </div>
 </div>
@@ -543,6 +553,56 @@ function exportHighRes(){
   link.href=tmp.toDataURL("image/png");
   link.click();
 }
+
+// --- Video recording ---
+let mediaRecorder=null, recordedChunks=[], isRecording=false, recordStartTime=0, recordTimerInterval=null;
+
+function updateRecordTimer(){
+  const secs=Math.floor((performance.now()-recordStartTime)/1000);
+  const m=Math.floor(secs/60), s=(secs%60).toString().padStart(2,"0");
+  const el=document.getElementById("recordStatus");
+  if(el) el.textContent=`● REC ${m}:${s}`;
+}
+
+function startRecording(){
+  if(!canvas.captureStream){
+    alert("Video recording isn't supported in this browser.");
+    return;
+  }
+  const stream=canvas.captureStream(30);
+  recordedChunks=[];
+  const mime=MediaRecorder.isTypeSupported("video/webm;codecs=vp9")?"video/webm;codecs=vp9":"video/webm";
+  mediaRecorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:8000000});
+  mediaRecorder.ondataavailable=e=>{ if(e.data.size>0) recordedChunks.push(e.data); };
+  mediaRecorder.onstop=()=>{
+    const blob=new Blob(recordedChunks,{type:mime});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement("a");
+    link.href=url;
+    link.download=`attractor-${state.type.replace(/\s+/g,"_")}-${Date.now()}.webm`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  mediaRecorder.start();
+  isRecording=true;
+  recordStartTime=performance.now();
+  updateRecordTimer();
+  recordTimerInterval=setInterval(updateRecordTimer,500);
+  const btn=document.getElementById("recordBtn"), status=document.getElementById("recordStatus");
+  btn.textContent="⏹ STOP RECORDING"; btn.classList.add("recording");
+  status.style.display="block"; status.classList.add("live");
+}
+
+function stopRecording(){
+  if(mediaRecorder && isRecording) mediaRecorder.stop();
+  isRecording=false;
+  clearInterval(recordTimerInterval);
+  const btn=document.getElementById("recordBtn"), status=document.getElementById("recordStatus");
+  btn.textContent="⏺ RECORD VIDEO"; btn.classList.remove("recording");
+  status.style.display="none"; status.classList.remove("live");
+}
+
+document.getElementById("recordBtn").onclick=()=>{ isRecording?stopRecording():startRecording(); };
 
 window._ppf=POINTS_PER_FRAME; window._trail=0.96;
 
