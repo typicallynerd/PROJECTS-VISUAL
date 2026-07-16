@@ -348,6 +348,7 @@ let toParams   = {...ATTRACTORS["de Jong"].presets[1]};
 let morphT = 0, presetIdx = 1;
 let iterX = 0.1, iterY = 0.1;
 let flowX = 0.1, flowY = 0, flowZ = 0, rotAngle = 0;
+let beatPunch = 0;
 let cachedBounds = null;
 let lastRenderParams = fromParams;
 const POINTS_PER_FRAME = 3000;
@@ -364,7 +365,7 @@ function resetFlowState(){
 // --- Audio-reactive analysis ---
 const audioEl=document.getElementById("audioEl");
 let audioCtx=null, analyser=null, freqData=null, audioGraphReady=false;
-let bandAvg={bass:0,mid:0,treble:0}, lastBeatTime=0, audioFrameCount=0;
+let bandAvg={bass:0,mid:0,treble:0,overall:0}, lastBeatTime=0, audioFrameCount=0;
 
 function bandEnergy(data,from,to){
   let sum=0,count=0;
@@ -717,6 +718,9 @@ const _patchedLoop=function(){
   const ease=t=>t<0.5?2*t*t:-1+(4-2*t)*t;
   const baseParams=lerpParams(fromParams,toParams,ease(Math.min(morphT,1)));
   let params=baseParams;
+  beatPunch*=0.9;
+  let audioEnergyBoost=0;
+  let brightnessMul=state.screenBrightness/100;
   if(manualParams){
     params={...baseParams, ...manualParams};
     dragFrameCount++;
@@ -727,10 +731,12 @@ const _patchedLoop=function(){
     const bass=bandEnergy(freqData,0,Math.floor(n*0.06));
     const mid=bandEnergy(freqData,Math.floor(n*0.06),Math.floor(n*0.25));
     const treble=bandEnergy(freqData,Math.floor(n*0.25),Math.floor(n*0.6));
+    const overall=bandEnergy(freqData,0,n);
     const alpha=0.06;
     bandAvg.bass+=(bass-bandAvg.bass)*alpha;
     bandAvg.mid+=(mid-bandAvg.mid)*alpha;
     bandAvg.treble+=(treble-bandAvg.treble)*alpha;
+    bandAvg.overall+=(overall-bandAvg.overall)*alpha;
     params={...baseParams};
     const keys=ATTRACTORS[state.type].params;
     const devs=[bass-bandAvg.bass, mid-bandAvg.mid, treble-bandAvg.treble];
@@ -738,15 +744,20 @@ const _patchedLoop=function(){
       const r=getRange(state.type,k), span=(r[1]-r[0])/4;
       params[k]+=devs[i%3]*state.audioWobble*2.2*span;
     });
+    const energyPulse=Math.max(0,overall-bandAvg.overall);
+    audioEnergyBoost=Math.min(energyPulse*4,1.2);
+    brightnessMul=(state.screenBrightness/100)*(1+Math.min(energyPulse*1.6,0.5));
     const now=performance.now();
     if(bass>0.12 && (bass-bandAvg.bass)>state.beatSensitivity && now-lastBeatTime>170){
       lastBeatTime=now;
+      beatPunch=1;
       randomPreset();
       cachedBounds=null;
     }
     audioFrameCount++;
     if(audioFrameCount%90===0) cachedBounds=computeBounds(params);
   }
+  document.documentElement.style.setProperty("--canvas-brightness",brightnessMul.toFixed(3));
   lastRenderParams=params;
   document.getElementById("eqOverlay").innerHTML=ATTRACTORS[state.type].eqs(params).join("<br>");
   ATTRACTORS[state.type].params.forEach(k=>{
@@ -762,9 +773,10 @@ const _patchedLoop=function(){
   const att=ATTRACTORS[state.type],pal=PALETTES[state.palette];
   if(!cachedBounds)cachedBounds=computeBounds(params);
   const sc=getScale(cachedBounds),ppf=window._ppf;
+  const pointSize=1.5+beatPunch*2.5;
   offCtx.globalAlpha=0.4;
   if(att.dim===3){
-    rotAngle+=0.006;
+    rotAngle+=0.006*(1+audioEnergyBoost);
     const cs=Math.cos(rotAngle), sn=Math.sin(rotAngle), init=att.init||[0.1,0.1,0.1];
     for(let i=0;i<ppf;i++){
       const d=att.deriv(flowX,flowY,flowZ,params);
@@ -772,7 +784,7 @@ const _patchedLoop=function(){
       if(!isFinite(flowX)||!isFinite(flowY)||!isFinite(flowZ)){flowX=init[0];flowY=init[1];flowZ=init[2];continue;}
       const px=flowX*cs+flowZ*sn, py=flowY;
       offCtx.fillStyle=pal[Math.floor((i/ppf)*pal.length)];
-      offCtx.fillRect(px*sc.scale+sc.offX,py*sc.scale+sc.offY,1.5,1.5);
+      offCtx.fillRect(px*sc.scale+sc.offX,py*sc.scale+sc.offY,pointSize,pointSize);
     }
   } else {
     for(let i=0;i<ppf;i++){
@@ -780,7 +792,7 @@ const _patchedLoop=function(){
       if(!isFinite(r[0])||!isFinite(r[1])){iterX=0.1;iterY=0.1;continue;}
       iterX=r[0];iterY=r[1];
       offCtx.fillStyle=pal[Math.floor((i/ppf)*pal.length)];
-      offCtx.fillRect(iterX*sc.scale+sc.offX,iterY*sc.scale+sc.offY,1.5,1.5);
+      offCtx.fillRect(iterX*sc.scale+sc.offX,iterY*sc.scale+sc.offY,pointSize,pointSize);
     }
   }
   offCtx.globalAlpha=1; offCtx.globalCompositeOperation="source-over";
