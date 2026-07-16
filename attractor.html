@@ -37,12 +37,14 @@
     flex: 1; display: flex; align-items: center;
     justify-content: center; padding: 12px; position: relative;
     cursor: crosshair;
+    touch-action: none;
     background-color: #05020f;
     background-image: linear-gradient(rgba(5,2,15,0.72), rgba(5,2,15,0.72)), url("WhatsApp Image 2026-07-02 at 23.33.43.jpeg");
     background-size: cover, cover;
     background-position: center, center;
     background-repeat: no-repeat, no-repeat;
   }
+  .canvas-wrap.sculpting { cursor: grabbing; }
   .click-hint {
     position: absolute; top: 24px; right: 24px; font-size: 10px;
     color: rgba(192,132,252,0.6); letter-spacing: 2px;
@@ -145,7 +147,7 @@
   <div class="canvas-wrap">
     <canvas id="c"></canvas>
     <div class="eq-overlay" id="eqOverlay"></div>
-    <div class="click-hint">CLICK IMAGE TO RESHAPE</div>
+    <div class="click-hint">DRAG TO SCULPT · TAP FOR PHOTO</div>
     <div class="morph-bar-wrap">
       <div class="morph-label">MORPHING…</div>
       <div class="morph-bar-bg"><div class="morph-bar-fill" id="morphBar" style="width:0%"></div></div>
@@ -464,14 +466,67 @@ function resizeCanvas(){
 resizeCanvas();
 window.addEventListener("resize",resizeCanvas);
 
-document.querySelector(".canvas-wrap").addEventListener("click",function(e){
-  reshapeFromImagePoint(e.clientX,e.clientY);
-  const ripple=document.createElement("div");
-  ripple.className="click-ripple";
-  ripple.style.left=(e.clientX-this.getBoundingClientRect().left)+"px";
-  ripple.style.top=(e.clientY-this.getBoundingClientRect().top)+"px";
-  this.appendChild(ripple);
-  setTimeout(()=>ripple.remove(),600);
+const canvasWrap=document.querySelector(".canvas-wrap");
+let dragging=false, dragMoved=false, dragStartX=0, dragStartY=0, dragKeys=null, manualParams=null, dragFrameCount=0;
+
+function updateManualParams(clientX,clientY){
+  const rect=canvas.getBoundingClientRect();
+  let nx=(clientX-rect.left)/rect.width, ny=(clientY-rect.top)/rect.height;
+  nx=Math.min(Math.max(nx,0),1); ny=Math.min(Math.max(ny,0),1);
+  const mp={};
+  const r0=getRange(state.type,dragKeys[0]);
+  mp[dragKeys[0]]=r0[0]+nx*(r0[1]-r0[0]);
+  if(dragKeys[1]){
+    const r1=getRange(state.type,dragKeys[1]);
+    mp[dragKeys[1]]=r1[0]+(1-ny)*(r1[1]-r1[0]);
+  }
+  manualParams=mp;
+}
+
+canvasWrap.addEventListener("pointerdown",function(e){
+  dragging=true; dragMoved=false;
+  dragStartX=e.clientX; dragStartY=e.clientY;
+  dragKeys=ATTRACTORS[state.type].params;
+  canvasWrap.setPointerCapture(e.pointerId);
+});
+canvasWrap.addEventListener("pointermove",function(e){
+  if(!dragging) return;
+  const dx=e.clientX-dragStartX, dy=e.clientY-dragStartY;
+  if(!dragMoved && Math.hypot(dx,dy)>4){
+    dragMoved=true;
+    canvasWrap.classList.add("sculpting");
+  }
+  if(dragMoved) updateManualParams(e.clientX,e.clientY);
+});
+canvasWrap.addEventListener("pointerup",function(e){
+  if(!dragging) return;
+  dragging=false;
+  canvasWrap.classList.remove("sculpting");
+  try{ canvasWrap.releasePointerCapture(e.pointerId); }catch(err){}
+  if(dragMoved){
+    const finalParams={...lerpParams(fromParams,toParams,morphT), ...manualParams};
+    fromParams=finalParams;
+    toParams={};
+    ATTRACTORS[state.type].params.forEach(k=>{
+      const r=getRange(state.type,k);
+      toParams[k]=parseFloat((r[0]+Math.random()*(r[1]-r[0])).toFixed(3));
+    });
+    morphT=0;
+    manualParams=null;
+    cachedBounds=null;
+  } else {
+    reshapeFromImagePoint(e.clientX,e.clientY);
+    const ripple=document.createElement("div");
+    ripple.className="click-ripple";
+    const wrapRect=canvasWrap.getBoundingClientRect();
+    ripple.style.left=(e.clientX-wrapRect.left)+"px";
+    ripple.style.top=(e.clientY-wrapRect.top)+"px";
+    canvasWrap.appendChild(ripple);
+    setTimeout(()=>ripple.remove(),600);
+  }
+});
+canvasWrap.addEventListener("pointercancel",function(){
+  dragging=false; manualParams=null; canvasWrap.classList.remove("sculpting");
 });
 
 function computeBounds(params){
@@ -614,7 +669,11 @@ const _patchedLoop=function(){
   const ease=t=>t<0.5?2*t*t:-1+(4-2*t)*t;
   const baseParams=lerpParams(fromParams,toParams,ease(Math.min(morphT,1)));
   let params=baseParams;
-  if(state.audioReactive && audioGraphReady && !audioEl.paused){
+  if(manualParams){
+    params={...baseParams, ...manualParams};
+    dragFrameCount++;
+    if(dragFrameCount%10===0) cachedBounds=computeBounds(params);
+  } else if(state.audioReactive && audioGraphReady && !audioEl.paused){
     analyser.getByteFrequencyData(freqData);
     const n=freqData.length;
     const bass=bandEnergy(freqData,0,Math.floor(n*0.06));
