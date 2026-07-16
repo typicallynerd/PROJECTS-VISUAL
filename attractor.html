@@ -133,8 +133,11 @@
   body.immersive .canvas-wrap { padding: 0; }
   #panelDynamic { display: flex; flex-direction: column; gap: 16px; }
   #audioPanel { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #1a0f2e; padding-top: 14px; margin-top: 16px; }
-  #audioEl { height: 30px; }
   #audioTrackName { font-size: 10px; color: #8b7aa8; word-break: break-all; }
+  #audioPlayerRow { display: none; align-items: center; gap: 8px; }
+  #audioPlayBtn { padding: 5px 10px; flex-shrink: 0; }
+  #audioSeek { flex: 1; }
+  .audio-time { font-size: 10px; color: #e8e0f5; flex-shrink: 0; min-width: 30px; text-align: center; }
   #recordPanel { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #1a0f2e; padding-top: 14px; margin-top: 16px; }
   #recordStatus { font-size: 10px; color: #ff6b6b; letter-spacing: 2px; text-align: center; }
   @keyframes recPulse { 0%,100%{opacity:1;} 50%{opacity:0.35;} }
@@ -170,7 +173,13 @@
       <div id="audioTrackName">no track loaded</div>
       <button class="big-btn" id="audioLoadBtn">🎵 LOAD TRACK</button>
       <input type="file" id="audioFileInput" accept="audio/*" style="display:none">
-      <audio id="audioEl" controls style="width:100%;display:none;"></audio>
+      <audio id="audioEl" style="display:none;"></audio>
+      <div id="audioPlayerRow">
+        <button class="pill-btn" id="audioPlayBtn">▶</button>
+        <span class="audio-time" id="audioCurTime">0:00</span>
+        <input type="range" id="audioSeek" min="0" max="100" step="0.1" value="0">
+        <span class="audio-time" id="audioDurTime">0:00</span>
+      </div>
       <button class="pill-btn" id="audioReactToggle" style="width:100%;display:none;">REACT: OFF</button>
       <div class="slider-row" id="wobbleRow" style="display:none;margin-bottom:0;">
         <div class="slider-header"><span class="slider-key">REACT AMOUNT</span><span class="slider-val" id="wobble-val">50%</span></div>
@@ -454,15 +463,18 @@ function setupAudioGraph(){
 
 function loadAudioFile(file){
   audioEl.src=URL.createObjectURL(file);
-  audioEl.style.display="block";
   document.getElementById("audioTrackName").textContent=file.name;
   setupAudioGraph();
   state.audioReactive=true;
-  bandAvg={bass:0,mid:0,treble:0};
+  bandAvg={bass:0,mid:0,treble:0,overall:0};
   const toggle=document.getElementById("audioReactToggle");
   toggle.style.display="block"; toggle.textContent="REACT: ON"; toggle.classList.add("active");
   document.getElementById("wobbleRow").style.display="block";
   document.getElementById("sensRow").style.display="block";
+  document.getElementById("audioPlayerRow").style.display="flex";
+  document.getElementById("audioPlayBtn").textContent="▶";
+  document.getElementById("audioCurTime").textContent="0:00";
+  document.getElementById("audioDurTime").textContent="0:00";
 }
 
 document.getElementById("audioLoadBtn").onclick=()=>document.getElementById("audioFileInput").click();
@@ -472,6 +484,33 @@ document.getElementById("audioReactToggle").onclick=function(){
   this.textContent=state.audioReactive?"REACT: ON":"REACT: OFF";
   this.classList.toggle("active",state.audioReactive);
 };
+
+function formatAudioTime(s){
+  if(!isFinite(s)) return "0:00";
+  const m=Math.floor(s/60), sec=Math.floor(s%60);
+  return `${m}:${sec.toString().padStart(2,"0")}`;
+}
+document.getElementById("audioPlayBtn").onclick=()=>{ if(audioEl.paused) audioEl.play(); else audioEl.pause(); };
+audioEl.addEventListener("play",()=>{ document.getElementById("audioPlayBtn").textContent="⏸"; });
+audioEl.addEventListener("pause",()=>{ document.getElementById("audioPlayBtn").textContent="▶"; });
+audioEl.addEventListener("loadedmetadata",()=>{
+  document.getElementById("audioSeek").max=audioEl.duration;
+  document.getElementById("audioDurTime").textContent=formatAudioTime(audioEl.duration);
+});
+let seekingAudio=false;
+const audioSeekEl=document.getElementById("audioSeek");
+audioSeekEl.addEventListener("pointerdown",()=>{ seekingAudio=true; });
+audioSeekEl.addEventListener("pointerup",()=>{ seekingAudio=false; });
+audioSeekEl.addEventListener("input",e=>{
+  const t=parseFloat(e.target.value);
+  audioEl.currentTime=t;
+  document.getElementById("audioCurTime").textContent=formatAudioTime(t);
+});
+audioEl.addEventListener("timeupdate",()=>{
+  if(seekingAudio) return;
+  audioSeekEl.value=audioEl.currentTime;
+  document.getElementById("audioCurTime").textContent=formatAudioTime(audioEl.currentTime);
+});
 document.getElementById("wobbleSlider").oninput=e=>{
   state.audioWobble=parseInt(e.target.value)/100;
   document.getElementById("wobble-val").textContent=e.target.value+"%";
