@@ -280,13 +280,80 @@ const ATTRACTORS = {
     dim: 3, dt: 0.005, init: [-1, 0, 0],
     eqs: (p) => [`dx = −${p.a.toFixed(2)}x−4y−4z−y²`, `dy = −${p.a.toFixed(2)}y−4z−4x−z²`, `dz = −${p.a.toFixed(2)}z−4x−4y−x²`],
     params: ["a"],
-    range: { a:[1.35,1.45] },
+    range: { a:[1.39,1.48] },
     deriv: (x,y,z,p) => [
       -p.a*x - 4*y - 4*z - y*y,
       -p.a*y - 4*z - 4*x - z*z,
       -p.a*z - 4*x - 4*y - x*x
     ],
-    presets: [ {a:1.4}, {a:1.38}, {a:1.42}, {a:1.36} ],
+    presets: [ {a:1.4}, {a:1.42}, {a:1.44}, {a:1.46} ],
+  },
+  "Chen": {
+    dim: 3, dt: 0.0015, init: [-0.1, 0.5, -0.6],
+    eqs: (p) => [`dx = ${p.a.toFixed(1)}(y−x)`, `dy = (${p.c.toFixed(1)}−${p.a.toFixed(1)})x−xz+${p.c.toFixed(1)}y`, `dz = xy−${p.b.toFixed(1)}z`],
+    params: ["a","b","c"],
+    range: { a:[34,37], b:[2.8,3.2], c:[27,29] },
+    deriv: (x,y,z,p) => [p.a*(y-x), (p.c-p.a)*x - x*z + p.c*y, x*y - p.b*z],
+    presets: [
+      {a:35,b:3,c:28},{a:36,b:3.1,c:27.5},{a:34.5,b:2.9,c:28.5},{a:35.5,b:3,c:28},
+    ],
+  },
+  "Chua": {
+    dim: 3, dt: 0.008, init: [0.7, 0, 0],
+    eqs: (p) => [`dx = ${p.alpha.toFixed(1)}(y−x−h(x))`, `dy = x−y+z`, `dz = −${p.beta.toFixed(1)}y`],
+    params: ["alpha","beta"],
+    range: { alpha:[13,16], beta:[24,30] },
+    deriv: (x,y,z,p) => {
+      const m0=-1.143, m1=-0.714;
+      const h=m1*x+0.5*(m0-m1)*(Math.abs(x+1)-Math.abs(x-1));
+      return [p.alpha*(y-x-h), x-y+z, -p.beta*y];
+    },
+    presets: [
+      {alpha:15.6,beta:28},{alpha:14,beta:26},{alpha:13.5,beta:25},{alpha:15,beta:27},
+    ],
+  },
+  "Dadras": {
+    dim: 3, dt: 0.006, init: [0.1, 0.1, 0.1],
+    eqs: (p) => [`dx = y−${p.a.toFixed(1)}x+${p.b.toFixed(1)}yz`, `dy = ${p.c.toFixed(1)}y−xz+z`, `dz = ${p.d.toFixed(1)}xy−${p.e.toFixed(1)}z`],
+    params: ["a","b","c","d","e"],
+    range: { a:[2.5,3.5], b:[2.3,3.1], c:[1.3,2.1], d:[1.6,2.4], e:[7,11] },
+    deriv: (x,y,z,p) => [y-p.a*x+p.b*y*z, p.c*y-x*z+z, p.d*x*y-p.e*z],
+    presets: [
+      {a:3,b:2.7,c:1.7,d:2,e:9},{a:2.8,b:2.9,c:1.5,d:2.2,e:8},
+      {a:3.2,b:2.5,c:1.9,d:1.8,e:10},{a:2.9,b:3.0,c:1.6,d:2.1,e:9.5},
+    ],
+  },
+  "Rabinovich-Fabrikant": {
+    dim: 3, dt: 0.006, init: [-1, 0, 0.5],
+    eqs: (p) => [`dx = y(z−1+x²)+${p.gamma.toFixed(2)}x`, `dy = x(3z+1−x²)+${p.gamma.toFixed(2)}y`, `dz = −2z(${p.alpha.toFixed(2)}+xy)`],
+    params: ["alpha","gamma"],
+    range: { alpha:[0.12,0.16], gamma:[0.09,0.13] },
+    deriv: (x,y,z,p) => [
+      y*(z-1+x*x) + p.gamma*x,
+      x*(3*z+1-x*x) + p.gamma*y,
+      -2*z*(p.alpha + x*y)
+    ],
+    presets: [
+      {alpha:0.14,gamma:0.10},{alpha:0.13,gamma:0.11},{alpha:0.15,gamma:0.12},{alpha:0.14,gamma:0.11},
+    ],
+  },
+  "Four-Wing": {
+    dim: 3, dt: 0.0015, init: [1, 1, 1],
+    eqs: (p) => [`dx = ${p.a.toFixed(1)}(y−x)+yz`, `dy = ${p.c.toFixed(1)}x+${p.d.toFixed(1)}y−xz`, `dz = xy−${p.b.toFixed(1)}z`],
+    params: ["a","b","c","d"],
+    range: { a:[8,12], b:[2,3.3], c:[25,31], d:[-1.5,-0.5] },
+    deriv: (x,y,z,p) => [p.a*(y-x)+y*z, p.c*x+p.d*y-x*z, x*y-p.b*z],
+    presets: [
+      {a:10,b:2.667,c:28,d:-1},{a:9,b:2.8,c:29,d:-0.8},{a:11,b:2.5,c:27,d:-1.2},{a:10,b:3,c:30,d:-0.9},
+    ],
+  },
+  "Sprott B": {
+    dim: 3, dt: 0.01, init: [0.4, 0.8, 1.0],
+    eqs: (p) => [`dx = ${p.a.toFixed(2)}yz`, `dy = x−y`, `dz = 1−xy`],
+    params: ["a"],
+    range: { a:[0.6,1.4] },
+    deriv: (x,y,z,p) => [p.a*y*z, x-y, 1-x*y],
+    presets: [ {a:1.0}, {a:0.8}, {a:1.2}, {a:0.6}, {a:1.4} ],
   },
 };
 
@@ -345,7 +412,7 @@ document.getElementById("themeColorPicker").oninput=e=>{
 };
 let fromParams = {...ATTRACTORS["de Jong"].presets[0]};
 let toParams   = {...ATTRACTORS["de Jong"].presets[1]};
-let morphT = 0, presetIdx = 1;
+let morphT = 0;
 let iterX = 0.1, iterY = 0.1;
 let flowX = 0.1, flowY = 0, flowZ = 0, rotAngle = 0;
 let beatPunch = 0;
@@ -416,20 +483,18 @@ document.getElementById("sensSlider").oninput=e=>{
 };
 audioEl.addEventListener("play",()=>{ if(audioCtx&&audioCtx.state==="suspended") audioCtx.resume(); });
 
-function nextPreset(){
-  const p=ATTRACTORS[state.type].presets;
-  fromParams={...toParams};
-  presetIdx=(presetIdx+1)%p.length;
-  toParams={...p[presetIdx]};
-  morphT=0;
-}
-
 function randomPreset(){
   fromParams=lerpParams(fromParams,toParams,morphT);
+  const presets=ATTRACTORS[state.type].presets;
+  const anchor=presets[Math.floor(Math.random()*presets.length)];
   toParams={};
   ATTRACTORS[state.type].params.forEach(k=>{
     const r=getRange(state.type,k);
-    toParams[k]=parseFloat((r[0]+Math.random()*(r[1]-r[0])).toFixed(3));
+    const span=r[1]-r[0];
+    const base=anchor[k]!==undefined?anchor[k]:(r[0]+r[1])/2;
+    let v=base+(Math.random()*2-1)*span*0.15;
+    v=Math.min(Math.max(v,r[0]),r[1]);
+    toParams[k]=parseFloat(v.toFixed(3));
   });
   morphT=0;
 }
@@ -713,7 +778,7 @@ window._ppf=POINTS_PER_FRAME; window._trail=0.96;
 const _patchedLoop=function(){
   if(!state.playing){requestAnimationFrame(_patchedLoop);return;}
   morphT+=state.speed;
-  if(morphT>=1){morphT=1;cachedBounds=null;nextPreset();}
+  if(morphT>=1){morphT=1;cachedBounds=null;randomPreset();}
   document.getElementById("morphBar").style.width=(morphT*100)+"%";
   const ease=t=>t<0.5?2*t*t:-1+(4-2*t)*t;
   const baseParams=lerpParams(fromParams,toParams,ease(Math.min(morphT,1)));
@@ -827,7 +892,7 @@ function buildPanel(){
   Object.keys(ATTRACTORS).forEach(t=>{
     const btn=document.createElement("button"); btn.className="type-btn"+(state.type===t?" active":""); btn.textContent=t;
     btn.onclick=()=>{
-      state.type=t; presetIdx=0;
+      state.type=t;
       fromParams={...ATTRACTORS[t].presets[0]}; toParams={...ATTRACTORS[t].presets[1]};
       morphT=0; cachedBounds=null; rotAngle=0; resetFlowState();
       offCtx.clearRect(0,0,offscreen.width,offscreen.height);
