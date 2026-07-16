@@ -6,7 +6,7 @@
 <title>Attractor Loop</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  :root { --accent: #7c3aed; --accent-light: #c084fc; }
+  :root { --accent: #7c3aed; --accent-light: #c084fc; --photo-scrim: 0.72; --canvas-brightness: 1; }
   body {
     background: #05020f;
     color: #e8e0f5;
@@ -44,10 +44,11 @@
     cursor: crosshair;
     touch-action: none;
     background-color: #05020f;
-    background-image: linear-gradient(rgba(5,2,15,0.72), rgba(5,2,15,0.72)), url("WhatsApp Image 2026-07-02 at 23.33.43.jpeg");
+    background-image: linear-gradient(rgba(5,2,15,var(--photo-scrim)), rgba(5,2,15,var(--photo-scrim))), url("WhatsApp Image 2026-07-02 at 23.33.43.jpeg");
     background-size: cover, cover;
     background-position: center, center;
     background-repeat: no-repeat, no-repeat;
+    filter: brightness(var(--canvas-brightness));
   }
   .canvas-wrap.sculpting { cursor: grabbing; }
   .click-hint {
@@ -334,7 +335,7 @@ function buildCustomPalette(hex){
   return [8,20,38,58,78,94].map(l=>hslToHex(h,Math.max(s,55),l));
 }
 
-let state = { type: "de Jong", palette: "Plasma", points: 80000, speed: 0.004, playing: true, audioReactive: false, audioWobble: 0.5, beatSensitivity: 0.17, customColorHex: "#7c3aed" };
+let state = { type: "de Jong", palette: "Plasma", points: 80000, speed: 0.004, playing: true, audioReactive: false, audioWobble: 0.5, beatSensitivity: 0.17, customColorHex: "#7c3aed", photoOpacity: 28, screenBrightness: 100 };
 
 document.getElementById("themeColorPicker").oninput=e=>{
   const hex=e.target.value;
@@ -452,7 +453,7 @@ loadBgSampler(BG_IMAGE_SRC);
 function loadNewPhoto(file){
   const reader=new FileReader();
   reader.onload=function(ev){
-    document.querySelector(".canvas-wrap").style.backgroundImage=`linear-gradient(rgba(5,2,15,0.72), rgba(5,2,15,0.72)), url("${ev.target.result}")`;
+    document.querySelector(".canvas-wrap").style.backgroundImage=`linear-gradient(rgba(5,2,15,var(--photo-scrim)), rgba(5,2,15,var(--photo-scrim))), url("${ev.target.result}")`;
     loadBgSampler(ev.target.result);
   };
   reader.readAsDataURL(file);
@@ -879,7 +880,26 @@ function buildPanel(){
   const pInput=document.createElement("input"); pInput.type="file"; pInput.accept="image/*"; pInput.style.display="none";
   pInput.onchange=e=>{ if(e.target.files[0]) loadNewPhoto(e.target.files[0]); };
   pb.onclick=()=>pInput.click();
-  phs.appendChild(pb); phs.appendChild(pInput); panel.appendChild(phs);
+  phs.appendChild(pb); phs.appendChild(pInput);
+  const opRow=document.createElement("div"); opRow.className="slider-row"; opRow.style.cssText="margin-top:10px;margin-bottom:0;";
+  opRow.innerHTML=`<div class="slider-header"><span class="slider-key">PHOTO OPACITY</span><span class="slider-val" id="photo-op-val">${state.photoOpacity}%</span></div>
+  <input type="range" min="0" max="100" step="1" value="${state.photoOpacity}">`;
+  opRow.querySelector("input").oninput=e=>{
+    state.photoOpacity=parseInt(e.target.value);
+    document.documentElement.style.setProperty("--photo-scrim",(1-state.photoOpacity/100).toFixed(2));
+    document.getElementById("photo-op-val").textContent=state.photoOpacity+"%";
+  };
+  phs.appendChild(opRow);
+  const brRow=document.createElement("div"); brRow.className="slider-row"; brRow.style.cssText="margin-top:10px;margin-bottom:0;";
+  brRow.innerHTML=`<div class="slider-header"><span class="slider-key">SCREEN BRIGHTNESS</span><span class="slider-val" id="brightness-val">${state.screenBrightness}%</span></div>
+  <input type="range" min="40" max="160" step="1" value="${state.screenBrightness}">`;
+  brRow.querySelector("input").oninput=e=>{
+    state.screenBrightness=parseInt(e.target.value);
+    document.documentElement.style.setProperty("--canvas-brightness",(state.screenBrightness/100).toFixed(2));
+    document.getElementById("brightness-val").textContent=state.screenBrightness+"%";
+  };
+  phs.appendChild(brRow);
+  panel.appendChild(phs);
   // Buttons
   const rb=document.createElement("button"); rb.className="big-btn"; rb.style.cssText="margin-top:8px";
   rb.textContent="◈ RANDOM JUMP";
